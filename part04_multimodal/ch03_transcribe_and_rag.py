@@ -34,22 +34,6 @@ def get_embedding(text : str) -> np.array :
     # response.data[0].embedding -> 숫자 리스트 -> numpy 배열로 변환
     return np.array(response.data[0].embedding)
     
-def cosine_similarity(a:np.ndarray, b:np.ndarray) :
-    """
-    코사인 유사도 계산.
-    수식: cos(θ) = (A · B) / (|A| × |B|)
-
-    내적(dot): 두 벡터가 같은 방향을 얼마나 가리키는지
-    norm(크기): 벡터의 길이 (크기 차이를 제거하기 위해 나눔)
-    결과: -1.0 ~ 1.0 (1에 가까울수록 의미가 유사)
-    """
-    dot = np.dot(a, b)
-    norm = np.linalg.norm(a) * np.linalg.norm(b)
-    
-    if norm == 0 :
-      return 0.0
-    
-    return dot / norm
 
 def batch_transcribe(audio_dir:str, model_name:str="base") -> list :
     """
