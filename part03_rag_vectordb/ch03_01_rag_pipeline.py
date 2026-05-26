@@ -2,6 +2,19 @@
 # LangChain LCEL RAG 파이프라인
 # 탐지 로그 CSV → ChromaDB → Retriever → GPT-4o → 대응 방안 생성
 
+
+# raw_docs의 구조:  (List[Document])
+
+# [
+
+#   Document(page_content="timestamp: ...\nlocation: ...", metadata={...}),
+
+#   Document(page_content="timestamp: ...\nlocation: ...", metadata={...}),
+
+#   ...
+
+# ]
+
 import csv
 from dotenv import load_dotenv
 from typing import List
@@ -75,9 +88,70 @@ vectorstore = Chroma.from_documents(documents=docs, embedding=embeddings)
 print(f"✅ STEP 4: ChromaDB에 {len(docs)}개 청크 저장 완료\n")
 
 # ─────────────────────────────────────────────────────────────
-# STEP 5: Retriever — 검색기 생성
+# STEP 5: Retriever — 검색기(LLM이 검색할 대상) 생성
 # as_retriever()로 vectorstore를 검색기로 변환합니다.
-# Django의 Model.objects.filter()[:3]과 비슷한 개념
+
 # ─────────────────────────────────────────────────────────────
 retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 print("✅ STEP 5: Retriever 구성 완료 (상위 3개 반환)\n")
+
+# ─────────────────────────────────────────────────────────────
+# STEP 6: LCEL RAG 체인 구성
+# | 기호로 각 단계를 연결합니다 (왼쪽 → 오른쪽으로 데이터 흐름)
+# ─────────────────────────────────────────────────────────────
+prompt = PromptTemplate.from_template(
+    """당신은 CCTV 보안 분석 전문가입니다.
+아래 과거 탐지 로그를 참고하여 현재 상황에 대한 대응 방안을 제시하세요.
+negative prompt : 주어지지 않은 정보에 대한 추론 금지.
+
+
+[참고 과거 사례]
+{context}
+
+[현재 탐지 상황]
+{question}
+
+위험도(정상/주의/위험) 판단과 즉각적인 조치사항을 구체적으로 답변하세요."""
+)
+
+def format_docs(docs:List[Document]) -> str :
+    """
+    Retriever가 반환한 Document 리스트를 하나의 문자열로 합칩니다.
+    이 문자열이 프롬프트의 {context} 자리에 들어갑니다.
+    """
+    
+    return "\n----\n".join(doc.page_content for doc in docs)
+  
+llm = ChatOpenAI(model="gpt-4o", temperature=0)
+
+rag_chain = (
+  {
+    "context" : retriever | format_docs,
+    "question" : RunnablePassthrough()  # query를 변경하지 않고 그대로 자리에 넣는다
+   }
+  | prompt
+  | llm
+  | StrOutputParser()
+)
+
+print("✅ STEP 6: LCEL RAG 체인 구성 완료\n")
+
+
+# ─────────────────────────────────────────────────────────────
+# STEP 7: 실제 쿼리 실행
+# ─────────────────────────────────────────────────────────────
+query = "새벽 2시 창고 출입구에서 person:2 / car:1 탐지. 침입 의심. 어떻게 대응해야 하나요?"
+
+print("=" * 60)
+print(f"🔍 현재 상황: {query}")
+print("=" * 60)
+
+retrieved = retriever.invoke(query)
+
+for i, doc in enumerate(retrieved, 1):
+    lines = doc.page_content.split("\n")
+    print(f"  [{i}] {' | '.join(l for l in lines[:3] if l.strip())[:80]}")
+
+answer = rag_chain.invoke(query)
+
+print(f"\n🤖 GPT-4o 대응 방안:\n{answer}")
