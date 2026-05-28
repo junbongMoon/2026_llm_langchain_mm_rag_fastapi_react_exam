@@ -272,3 +272,4 @@ with open(transcript_path, "w", encoding="utf-8") as f:
         f.write(f"{seg['text']}\n\n")
 
 print(f"📄 전사 파일 저장: {transcript_path}\n")
+
