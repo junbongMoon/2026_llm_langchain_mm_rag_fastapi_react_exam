@@ -145,3 +145,5 @@ chroma_db/
 *.mp3
 
 vision_sample/
+
+image_vector_db/
