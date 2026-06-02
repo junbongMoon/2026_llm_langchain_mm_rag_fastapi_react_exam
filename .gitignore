@@ -149,3 +149,5 @@ vision_sample/
 image_vector_db/
 
 images/
+
+runs/detect/
